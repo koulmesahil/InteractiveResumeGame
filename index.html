@@ -1,0 +1,2564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Resume</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #111;
+            font-family: 'Courier New', monospace;
+            color: white;
+        }
+        #game-container {
+            position: relative;
+            width: 100%;
+            height: 100vh;
+        }
+        canvas {
+            display: block;
+        }
+        #mobile-controls {
+            position: fixed;
+            bottom: 20px;
+            left: 0;
+            width: 100%;
+            display: none;
+            justify-content: space-between;
+            padding: 0 20px;
+            box-sizing: border-box;
+            z-index: 10;
+        }
+        .control-btn {
+            background-color: rgba(255, 255, 255, 0.3);
+            border: 2px solid white;
+            color: white;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            font-size: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            -webkit-user-select: none;
+            user-select: none;
+            touch-action: manipulation;
+        }
+        .jump-btn {
+            position: fixed;
+            bottom: 80px;
+            right: 20px;
+            background-color: rgba(255, 255, 255, 0.3);
+            border: 2px solid white;
+            color: white;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            -webkit-user-select: none;
+            user-select: none;
+            touch-action: manipulation;
+        }
+        #project-modal {
+            position: fixed;
+            top: 5%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            max-width: 700px;
+            padding: 2rem;
+            background: rgba(20, 20, 30, 0.95);
+            color: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+            z-index: 999;
+            display: none;
+            flex-direction: column;
+            gap: 1rem;
+            animation: modalSlideFade 0.6s ease forwards;
+            overflow: auto;
+        }
+
+        /* Animation */
+        @keyframes modalSlideFade {
+            0% {
+                transform: translate(-50%, -50%) scale(0.7);
+                opacity: 0;
+            }
+            100% {
+                transform: translate(-50%, 0%) scale(1);
+                opacity: 1;
+            }
+        }
+
+        /* Class trigger */
+        .modal-show {
+            animation: modalSlideFade 0.6s ease forwards;
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: none;
+            border: none;
+            color: white;
+            font-size: 20px;
+            cursor: pointer;
+        }
+        .instructions-toggle {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background-color: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 2px solid white;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            font-size: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 6;
+            touch-action: manipulation;
+            line-height: 1; /* Fix vertical centering */
+            font-family: Arial, sans-serif; /* Helps with baseline issues */
+        }
+
+
+        .instructions {
+            position: fixed;
+            top: 80px;
+            left: 20px;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 14px;
+            color: white;
+            z-index: 5;
+        }
+
+        @media (max-width: 768px) {
+            #mobile-controls {
+                display: flex;
+            }
+            .instructions {
+                font-size: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <!-- Game will be rendered here by p5.js -->
+    </div>
+    
+    <div class="instructions-toggle" id="instructions-toggle">❓</div>
+
+    <div class="instructions" id="instructions-box" ">
+        <p>Use arrow keys to move, space to jump</p>
+        <p>Enter buildings using ⏎ or ENTER to view projects</p>
+        <p>Use the sewer sytem to explore underground and press ▲ near ladders to climb back up</p>
+        <p>Skip the game to view the Project Dashboard <a href="https://www.notion.so/Project-Dashboard-1e84cfc2eb358049a2accda237ceb3e3?pvs=4" target="_blank" style="color: #5af; text-decoration: none;">Click Here</a></p>
+
+        <p>
+            <a href="https://koulmesahil.github.io/" target="_blank" style="color: #5af; text-decoration: none;">GitHub</a> | 
+            <a href="https://www.linkedin.com/in/sahilkoul123/" target="_blank" style="color: #5af; text-decoration: none;">LinkedIn</a>
+        </p>
+    </div>
+    
+    
+    <div id="mobile-controls">
+        <div class="control-btn" id="left-btn">◀</div>
+        <div class="control-btn" id="right-btn">▶</div>
+        <div class="control-btn" id="up-btn">▲</div>
+
+    </div>
+    <div class="jump-btn" id="jump-btn">JUMP</div>
+    
+    <div class="project-modal" id="project-modal">
+        <button class="close-btn" id="close-modal">✕</button>
+        <h2 id="project-title">Project Title</h2>
+        <div id="project-content">
+            <!-- Project content will be loaded here -->
+        </div>
+    </div>
+
+    <script>
+        // Game state and variables
+        let world;
+        let player;
+        let gravity = 0.5;
+        let jumpForce = -15;
+        let buildings = [];
+        let trees = [];
+        let clouds = [];
+        let grounds = [];
+        let caveEntrances = [];
+        let platforms = [];
+        let crystals = [];
+        let undergroundBuildings = [];
+        let stalactites = [];
+        let stalagmites = [];
+        let glowingParticles = [];
+        let waterPools = [];
+        let currentArea = "surface"; // "surface" or "underground"
+        let cameraX = 0;
+        let cameraY = 0;
+        //adding this for the project details 
+        let projectModalOpen = false;
+        let projectModalOpenTime = 0;
+        let currentProjectType = null;
+
+        
+        // Mobile controls state
+        let leftPressed = false;
+        let rightPressed = false;
+        let jumping = false;
+        let upPressed = false;
+        
+        // Background colors
+        let surfaceSkyColor;
+        let undergroundColor;
+        
+        // Projects data
+        const projects = {
+            "webdev": {
+                title: "Landcover Classification Interactive Web App",
+                content: `
+                    <h3></h3>
+                    <p>The objective of this project is to build an interactive web application that classifies satellite images into different land cover types using deep learning.</p>
+                    <p>Built with Streamlit, Python, TensorFlow, VGG16 pre-trained model</p>
+
+                    <video 
+                    src="landcoverclassification_video.mp4" 
+                    autoplay 
+                    muted 
+                    loop 
+                    playsinline 
+                    poster="landcoverclassification.png"
+                    style="width: 100%; border-radius: 10px; display: block;">
+                    Your browser does not support the video tag.
+                    </video>
+
+
+                    <br />
+                    <a href="https://landcoverclassification.streamlit.app/" target="_blank" style="display:inline-block; margin-top:10px; padding:10px 16px; background:#2ecc71; color:white; border-radius:8px; text-decoration:none;">
+                    🚀 Launch Live App
+                    </a>
+
+                    <a href="https://www.notion.so/Land-Cover-Classification-Project-1e74cfc2eb35801ea2e1c305de50926e?pvs=4" target="_blank" style="display:inline-block; margin-top:10px; padding:10px 16px; background:#1c74d4; color:white; border-radius:8px; text-decoration:none;">
+                    🔎 View Project
+                    </a>
+
+                `
+            },
+            "mobile": {
+                title: "SmartSort:AI Learning Game",
+                content: `
+                    <p>The goal of this project was to create a child-friendly educational game for young children, helping them learn about food categories.</p>   
+                    <p>Implemented using Python, Streamlit, Pandas, Altair, Web Speech API, SpeechSynthesis API, OpenAI GPT-3.5, Hugging Face Transformers.</p>
+                    <img 
+                    src="smartsort.png" 
+                    alt="SmartSort AI" 
+                    style="width: 100%; border-radius: 10px; display: block;">
+
+
+
+                    <br />
+                    <a href="https://smartsortaiforkids.streamlit.app/" target="_blank" style="display:inline-block; margin-top:10px; padding:10px 16px; background:#2ecc71; color:white; border-radius:8px; text-decoration:none;">
+                    🚀 Launch Live App
+                    </a>
+
+                    <a href="https://www.notion.so/SmartSort-Interactive-Voice-Based-AI-Learning-Game-for-Kids-1e44cfc2eb358095badae261bc4c364a?pvs=4" target="_blank" style="display:inline-block; margin-top:10px; padding:10px 16px; background:#1c74d4; color:white; border-radius:8px; text-decoration:none;">
+                    🔎 View Project
+                    </a>
+
+                    
+                `
+            },
+            "game": {
+                title: "Data Visualization",
+                content: `
+                    <h3>Project 1: Bike Rides Visualization</h3>
+                    <img 
+                    src="Dataviz1.png" 
+                    alt="Tableau Data Viz" 
+                    style="width: 30%; border-radius: 10px; display: block; float: right; margin-left: 20px;">
+                    <p>Created using Tableau</p>
+                    <p>Features: Analysis of bike-sharing trends, ride frequency metrics, and operational insights</p>
+
+                    <a href="https://public.tableau.com/app/profile/sahil.koul/viz/BikeRidesVisualization/LondonBikeDataset" style="color: #5af; text-decoration: none;">View Project</a>
+                     
+                    
+
+
+
+                    <h3>Project 2: Netflix Content Dashboard</h3>
+                    <img 
+                    src="Dataviz2.png" 
+                    alt="Tableau Data Viz" 
+                    style="width: 30%; border-radius: 10px; display: block; float: right; margin-left: 20px;">
+
+                    <p>Created using Tableau</p>
+                    <p>Features: Visualization of content ratings, genre distribution, and viewer engagement patterns</p>
+                    <a href="https://public.tableau.com/app/profile/sahil.koul/viz/NetflixDashboard_17074404564070/Netflix" style="color: #5af; text-decoration: none;">View Project</a>
+
+                                        
+
+
+
+
+                `
+            },
+            "design": {
+                title: "Regulatory Report Checker",
+                content: `
+                    <h3> </h3>
+                    <p>Built with NLP techniques for SEC filing analysis</p>
+                    <p>Features: Information extraction from 10-K/13F documents, structured output of regulatory obligations, risks, and violations</p>                    
+                    <img 
+                    src="regulatoryreportchecker.png" 
+                    alt="regulatoryreportchecker" 
+                    style="width: 100%; border-radius: 10px; display: block;">
+
+                    <br />
+                    <a href="https://huggingface.co/spaces/koulsahil/Regulatory_Document_Analyzer" target="_blank" style="display:inline-block; margin-top:10px; padding:10px 16px; background:#2ecc71; color:white; border-radius:8px; text-decoration:none;">
+                    🚀 Launch Live App
+                    </a>
+
+                    <a href="https://www.notion.so/Regulatory-Report-Checker-AI-Powered-Compliance-Document-Analyzer-1e74cfc2eb3580b09ab7c92bfeab70e8?pvs=4" target="_blank" style="display:inline-block; margin-top:10px; padding:10px 16px; background:#1c74d4; color:white; border-radius:8px; text-decoration:none;">
+                    🔎 View Project
+                    </a>
+
+                    
+                
+                
+                `
+            },
+            "ai": {
+                title: "Behind the code",
+                content: `
+                    <h3>🎉 Thanks for playing! 🎉</h3>
+                    <p>That’s the end of the game — I hope you had fun exploring!</p>
+                    <p>If you’re curious about how I made this interactive experience, check out the behind-the-scenes details here:</p>
+                    <a href="https://www.notion.so/Project-Dashboard-1e84cfc2eb358049a2accda237ceb3e3?pvs=4" style="color: #5af; text-decoration: none;">✨ See How It Was Built ✨</a>
+                    <p>Feel free to reach out if you want to chat or collaborate! 🚀</p>
+                `
+
+            },
+            "blockchain": {
+                title: "More Games",
+                content: `
+                    <h3>Project 1: BreatheCalm</h3>
+                    <p>Features: Animated breathing exercises, interactive toggles, adaptive visuals, minimalist UI</p>
+                    <a href="https://koulmesahil.github.io/BreatheCalm/" style="color: #5af; text-decoration: none;">View Project</a>
+
+                    <h3>Project 2: Camel Quest</h3>
+                    <p>Features: Obstacle course gameplay, reflex-based navigation, dynamic terrain</p>
+                    <a href="https://koulmesahil.github.io/camelquest/" style="color: #5af; text-decoration: none;">View Project</a>
+
+                    <h3>Project 3: Bioluminescent Ocean</h3>
+                    <p>Features: Interactive ocean simulation, glowing wave animations, generative art inspired by nature</p>
+                    <a href="https://koulmesahil.github.io/bioluminescent_ocean/" style="color: #5af; text-decoration: none;">View Project</a>
+
+                    <h3>Project 4: Draw a Circle Game</h3>
+                    <p>Features: Freehand circle drawing accuracy test, real-time visual feedback</p>
+                    <a href="https://koulmesahil.github.io/CircleDrawing/" style="color: #5af; text-decoration: none;">View Project</a>
+                `
+            }
+        };
+        
+        // P5.js setup function
+        function setup() {
+            const canvas = createCanvas(windowWidth, windowHeight);
+            canvas.parent('game-container');
+            
+            // Initialize world
+            world = new World();
+            
+            // Initialize player
+            player = new StickFigure(300, 50);
+            
+            // Initialize colors
+            surfaceSkyColor = color(135, 206, 235); // Sky blue background
+            undergroundColor = color(25, 10, 40); // Dark purplish background
+            
+            // Initialize environment
+            setupEnvironment();
+            
+            // Setup mobile controls
+            setupMobileControls();
+        }
+        
+        // P5.js draw function (game loop)
+        function draw() {
+            // Set background based on current area
+            if (currentArea === "surface") {
+                background(surfaceSkyColor);
+            } else if (currentArea === "underground") {
+                background(undergroundColor);
+            }
+            
+            // Update camera position to follow player
+            cameraX = lerp(cameraX, player.x - width/2, 0.05);
+            
+            // Different camera behavior based on area
+            if (currentArea === "surface") {
+                cameraY = lerp(cameraY, player.y - height/2, 0.05);
+                // Don't let camera go below ground
+                cameraY = min(cameraY, world.groundLevel - height + 100);
+            } else if (currentArea === "underground") {
+                cameraY = lerp(cameraY, player.y - height/2, 0.05);
+            }
+
+            if (currentProjectType) {
+                const building = buildings.find(b => b.projectType === currentProjectType);
+                if (building) checkProjectModalDistance(building);
+            }
+
+            
+            // Apply camera transformation
+            push();
+            translate(-cameraX, -cameraY);
+            
+            // Update and draw world
+            world.update();
+            world.display();
+            
+            // Update and draw environmental elements
+            drawEnvironment();
+            
+            // Update and draw player
+            player.update();
+            player.display();
+            
+            // Reset transformation
+            pop();
+        }
+        
+        // Setup the game environment
+        function setupEnvironment() {
+            // Create buildings that represent different project categories
+            buildings.push(new Building(500, world.groundLevel - 140, 200, 150, "webdev", "🤖 AI"));
+            buildings.push(new Building(900, world.groundLevel - 120, 180, 120, "mobile", "🧠 ML"));
+            buildings.push(new Building(1400, world.groundLevel - 145, 220, 170, "game", "📊 Data Viz"));
+            buildings.push(new Building(1900, world.groundLevel - 140, 190, 140, "design", "🔬 ETL"));
+            
+            // Create underground buildings
+            undergroundBuildings.push(new UndergroundBuilding(700, world.undergroundLevel - 120, 180, 120, "ai", "🎬 Making Of", color(100, 50, 200)));
+            undergroundBuildings.push(new UndergroundBuilding(1600, world.undergroundLevel - 140, 200, 140, "blockchain", "🎮 More Games", color(50, 200, 150)));
+            
+            // Create decorative trees
+            for (let i = 0; i < 10; i++) {
+                let x = random(100, 2500);
+                // Avoid placing trees on buildings
+                let validPosition = true;
+                for (let b of buildings) {
+                    if (abs(x - b.x) < b.width/2 + 50) {
+                        validPosition = false;
+                        break;
+                    }
+                }
+                if (validPosition) {
+                    trees.push(new Tree(x, world.groundLevel-10, random(70, 120)));
+                }
+            }
+            
+            // Create clouds
+            for (let i = 0; i < 8; i++) {
+                clouds.push(new Cloud(random(0, 2500), random(50, 200)));
+            }
+            
+            // Create ground segments
+            for (let x = -1000; x < 3000; x += 300) {
+                grounds.push(new Ground(x, world.groundLevel, 300));
+            }
+            
+            // Create cave entrances
+            caveEntrances.push(new CaveEntrance(100, world.groundLevel, 120, 80));
+            caveEntrances.push(new CaveEntrance(1700, world.groundLevel, 150, 90));
+            
+            // Create underground platforms for navigation
+            platforms.push(new Platform(400, world.undergroundLevel - 180, 120, 15));
+            platforms.push(new Platform(1400, world.undergroundLevel - 180, 120, 15));
+
+            
+            // Add rope ladders to get back to the surface
+            platforms.push(new RopeLadder(200, world.groundLevel, world.undergroundLevel - 50, 30));
+            platforms.push(new RopeLadder(2000 , world.groundLevel, world.undergroundLevel - 50, 30));
+            
+            // Create crystals
+            for (let i = 0; i < 15; i++) {
+                crystals.push(new Crystal(
+                    random(200, 2300),
+                    random(world.undergroundLevel - 400, world.undergroundLevel - 50),
+                    random(15, 40),
+                    color(random(100, 255), random(100, 255), random(150, 255), 200)
+                ));
+            }
+            
+            // Create stalactites
+            for (let i = 0; i < 10; i++) {
+                stalactites.push(new Stalactite(
+                    random(200, 2300),
+                    world.undergroundLevel - 400,
+                    random(30, 80)
+                ));
+            }
+            
+            // Create stalagmites
+            for (let i = 0; i < 12; i++) {
+                stalagmites.push(new Stalagmite(
+                    random(200, 2300),
+                    world.undergroundLevel,
+                    random(30, 60)
+                ));
+            }
+            
+            // Create water pools
+            waterPools.push(new WaterPool(1000, world.undergroundLevel, 300, 30));
+            waterPools.push(new WaterPool(1800, world.undergroundLevel, 250, 25));
+            
+            // Create glowing particles
+            for (let i = 0; i < 50; i++) {
+                glowingParticles.push(new GlowingParticle(
+                    random(200, 2300),
+                    random(world.undergroundLevel - 380, world.undergroundLevel - 50),
+                    random(2, 5),
+                    color(random(150, 255), random(150, 255), random(150, 255), 150)
+                ));
+            }
+        }
+        
+        // Draw all environmental elements
+        function drawEnvironment() {
+            if (currentArea === "surface") {
+                // Draw surface elements
+                
+                // Draw clouds
+                for (let cloud of clouds) {
+                    cloud.display();
+                }
+                
+                // Draw buildings
+                for (let building of buildings) {
+                    building.update();
+                    building.display();
+                    
+                    // Check if player is entering a building
+                    if (building.containsPlayer(player)) {
+                        openProjectModal(building.projectType);
+                    }
+                }
+                
+                // Draw trees
+                for (let tree of trees) {
+                    tree.display();
+                }
+                
+                // Draw ground
+                for (let ground of grounds) {
+                    ground.display();
+                }
+                
+                // Draw cave entrances
+                for (let cave of caveEntrances) {
+                    cave.display();
+                    // Check if player is entering a cave
+                    if (cave.containsPlayer(player)) {
+                        enterUnderground(cave.x);
+                    }
+                }
+            } else if (currentArea === "underground") {
+                // Draw underground elements
+                
+                // Draw cave background
+                drawCaveBackground();
+                
+                // Draw water pools
+                for (let pool of waterPools) {
+                    pool.display();
+                    pool.update();
+                }
+                
+                // Draw stalactites
+                for (let stalactite of stalactites) {
+                    stalactite.display();
+                }
+                
+                // Draw stalagmites
+                for (let stalagmite of stalagmites) {
+                    stalagmite.display();
+                }
+                
+                // Draw platforms
+                for (let platform of platforms) {
+                    platform.display();
+                    // Check for player collision with platforms
+                    if (platform.checkCollision(player)) {
+                        player.y = platform.y - player.height;
+                        player.vy = 0;
+                        player.isOnGround = true;
+                    }
+                    
+                    // Check if player is climbing back to surface
+                    if (platform instanceof RopeLadder && platform.checkClimb(player)) {
+                        enterSurface(platform.x);
+                    }
+                }
+                
+                // Draw crystals
+                for (let crystal of crystals) {
+                    crystal.display();
+                }
+                
+                // Draw glowing particles
+                for (let particle of glowingParticles) {
+                    particle.update();
+                    particle.display();
+                }
+                
+                // Draw underground buildings
+                for (let building of undergroundBuildings) {
+                    building.update();
+                    building.display();
+                    
+                    // Check if player is entering a building
+                    if (building.containsPlayer(player)) {
+                        openProjectModal(building.projectType);
+                    }
+                }
+                
+                // Underground ceiling
+                noStroke();
+                fill(15, 5, 30);
+                rect(world.boundaries.left, world.undergroundLevel - 430, world.boundaries.right - world.boundaries.left, 30);
+                
+                // Underground floor
+                fill(40, 20, 60);
+                rect(world.boundaries.left, world.undergroundLevel, world.boundaries.right - world.boundaries.left, 30);
+
+
+                
+
+
+
+                
+            }
+            
+            // Check for falling out of the world
+            if (player.y > world.undergroundLevel + 300) {
+                // Reset player position to the surface
+                player.x = 300;
+                player.y = 50;
+                player.vy = 0;
+                currentArea = "surface";
+            }
+        }
+        
+        // Draw cave background with gradient effect
+        function drawCaveBackground() {
+            noStroke();
+            
+            // Dark background gradient
+            for (let y = world.undergroundLevel - 430; y < world.undergroundLevel; y += 2) {
+                let inter = map(y, world.undergroundLevel - 430, world.undergroundLevel, 0, 1);
+                let c = lerpColor(color(15, 5, 30), color(40, 20, 60), inter);
+                fill(c);
+                rect(world.boundaries.left, y, world.boundaries.right - world.boundaries.left, 2);
+            }
+            
+            // Cave wall texture
+            stroke(30, 15, 45, 100);
+            for (let i = 0; i < 100; i++) {
+                let x1 = random(world.boundaries.left, world.boundaries.right);
+                let y1 = random(world.undergroundLevel - 430, world.undergroundLevel);
+                let x2 = x1 + random(-20, 20);
+                let y2 = y1 + random(-20, 20);
+                line(x1, y1, x2, y2);
+            }
+            noStroke();
+        }
+        
+        // Enter the underground area
+        function enterUnderground(x) {
+            currentArea = "underground";
+            player.x = x;
+            player.y = world.undergroundLevel - 100;
+            player.vy = 0;
+        }
+        
+        // Return to the surface
+        function enterSurface(x) {
+            currentArea = "surface";
+            player.x = x;
+            player.y = world.groundLevel - player.height;
+            player.vy = 0;
+        }
+        
+        // World class
+        class World {
+            constructor() {
+                this.groundLevel = height - 100;
+                this.undergroundLevel = this.groundLevel + 500;
+                this.boundaries = {
+                    left: -500,
+                    right: 2500
+                };
+                // Generate stars with random positions
+                this.stars = [];
+                for (let i = 0; i < 200; i++) {
+                    this.stars.push({
+                        x: random(-500, 3000),
+                        y: random(0, this.groundLevel - 50),
+                        size: random(1, 3),
+                        brightness: random(150, 255)
+                    });
+                }
+            }
+            
+            update() {
+                // World logic goes here (day/night cycle, events, etc.)
+                // Make some stars twinkle
+                for (let i = 0; i < this.stars.length; i++) {
+                    if (random() < 0.01) {
+                        this.stars[i].brightness = random(150, 255);
+                    }
+                }
+            }
+            
+            display() {
+                // Draw background elements based on current area
+                if (currentArea === "surface") {
+                    background(10, 15, 40); // Very dark blue/purple, almost black
+
+                    this.drawMoon();
+                    this.drawStars();
+                    this.drawDistantMountains();
+                }
+            }
+            
+            drawMoon() {
+                let moonX = 200 - cameraX / 5;
+                let moonY = 100 - cameraY / 5;
+
+                // Base moon (lighter back circle for crescent)
+                noStroke();
+                fill(220, 220, 220);
+                circle(moonX, moonY, 80);
+
+                // Overlay to carve out crescent (slightly offset darker circle)
+                fill(15, 5, 30); // Match the night sky or background color
+                circle(moonX + 20, moonY, 80);
+
+
+            }
+
+            
+            drawStars() {
+                // Draw stars
+                noStroke();
+                for (let star of this.stars) {
+                    fill(255, 255, 255, star.brightness);
+                    circle(star.x - cameraX/4, star.y - cameraY/4, star.size);
+                }
+            }
+            
+            drawDistantMountains() {
+                noStroke();
+
+                // Farthest layer – dark blue
+                fill(20, 25, 50);
+                beginShape();
+                vertex(-500 - cameraX / 3, this.groundLevel);
+                vertex(-300 - cameraX / 3, this.groundLevel - 180);
+                vertex(-100 - cameraX / 3, this.groundLevel - 120);
+                vertex(200 - cameraX / 3, this.groundLevel - 220);
+                vertex(600 - cameraX / 3, this.groundLevel - 150);
+                vertex(1000 - cameraX / 3, this.groundLevel - 230);
+                vertex(1500 - cameraX / 3, this.groundLevel - 170);
+                vertex(2000 - cameraX / 3, this.groundLevel - 200);
+                vertex(2600 - cameraX / 3, this.groundLevel - 160);
+                vertex(3000 - cameraX / 3, this.groundLevel);
+                vertex(3000 - cameraX / 3, this.groundLevel + 500);
+                vertex(-500 - cameraX / 3, this.groundLevel + 500);
+                endShape(CLOSE);
+
+                // Mid-far layer – slightly lighter dark blue
+                fill(25, 30, 60);
+                beginShape();
+                vertex(-500 - cameraX / 3, this.groundLevel);
+                vertex(-300 - cameraX / 3, this.groundLevel - 160);
+                vertex(-100 - cameraX / 3, this.groundLevel - 100);
+                vertex(150 - cameraX / 3, this.groundLevel - 200);
+                vertex(500 - cameraX / 3, this.groundLevel - 130);
+                vertex(900 - cameraX / 3, this.groundLevel - 210);
+                vertex(1300 - cameraX / 3, this.groundLevel - 150);
+                vertex(1700 - cameraX / 3, this.groundLevel - 180);
+                vertex(2300 - cameraX / 3, this.groundLevel - 140);
+                vertex(2800 - cameraX / 3, this.groundLevel - 160);
+                vertex(3000 - cameraX / 3, this.groundLevel);
+                vertex(3000 - cameraX / 3, this.groundLevel + 500);
+                vertex(-500 - cameraX / 3, this.groundLevel + 500);
+                endShape(CLOSE);
+
+                // Mid layer – navy blue
+                fill(30, 35, 70);
+                beginShape();
+                vertex(-500 - cameraX / 3, this.groundLevel);
+                vertex(-300 - cameraX / 3, this.groundLevel - 140);
+                vertex(-100 - cameraX / 3, this.groundLevel - 90);
+                vertex(100 - cameraX / 3, this.groundLevel - 190);
+                vertex(400 - cameraX / 3, this.groundLevel - 110);
+                vertex(700 - cameraX / 3, this.groundLevel - 210);
+                vertex(1000 - cameraX / 3, this.groundLevel - 100);
+                vertex(1400 - cameraX / 3, this.groundLevel - 170);
+                vertex(1800 - cameraX / 3, this.groundLevel - 110);
+                vertex(2200 - cameraX / 3, this.groundLevel - 190);
+                vertex(2600 - cameraX / 3, this.groundLevel - 140);
+                vertex(3000 - cameraX / 3, this.groundLevel);
+                vertex(3000 - cameraX / 3, this.groundLevel + 500);
+                vertex(-500 - cameraX / 3, this.groundLevel + 500);
+                endShape(CLOSE);
+
+                // Foreground layer – darkest near-black blue for silhouette effect
+                fill(35, 40, 80);
+                beginShape();
+                vertex(-500 - cameraX / 3, this.groundLevel);
+                vertex(-300 - cameraX / 3, this.groundLevel - 150);
+                vertex(-100 - cameraX / 3, this.groundLevel - 80);
+                vertex(100 - cameraX / 3, this.groundLevel - 200);
+                vertex(400 - cameraX / 3, this.groundLevel - 120);
+                vertex(700 - cameraX / 3, this.groundLevel - 220);
+                vertex(1000 - cameraX / 3, this.groundLevel - 100);
+                vertex(1400 - cameraX / 3, this.groundLevel - 180);
+                vertex(1800 - cameraX / 3, this.groundLevel - 120);
+                vertex(2200 - cameraX / 3, this.groundLevel - 200);
+                vertex(2600 - cameraX / 3, this.groundLevel - 150);
+                vertex(3000 - cameraX / 3, this.groundLevel);
+                vertex(3000 - cameraX / 3, this.groundLevel + 500);
+                vertex(-500 - cameraX / 3, this.groundLevel + 500);
+                endShape(CLOSE);
+            }
+        }
+        
+ // Stick Figure class
+        class StickFigure {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.vx = 0;
+                this.vy = 0;
+                this.speed = 5;
+                this.isOnGround = false;
+                this.direction = 1; // 1 for right, -1 for left
+                this.animation = {
+                    frame: 0,
+                    walking: false,
+                    runFrame: 0
+                };
+                this.armAngle = 0;
+                this.legAngle = 0;
+                this.height = 60;
+                this.width = 20;
+            }
+            
+            update() {
+                // Apply physics
+                this.vy += gravity;
+                
+                // Handle keyboard input
+                if (keyIsDown(LEFT_ARROW) || leftPressed) {
+                    this.vx = -this.speed;
+                    this.direction = -1;
+                    this.animation.walking = true;
+                } else if (keyIsDown(RIGHT_ARROW) || rightPressed) {
+                    this.vx = this.speed;
+                    this.direction = 1;
+                    this.animation.walking = true;
+                } else {
+                    this.vx *= 0.8; // Friction
+                    this.animation.walking = false;
+                }
+                
+                // Handle jumping
+                if ((keyIsDown(32) || jumping) && this.isOnGround) { // Space key
+                    this.vy = jumpForce;
+                    this.isOnGround = false;
+                }
+                
+                // Apply velocity
+                this.x += this.vx;
+                this.y += this.vy;
+                
+                // Check world boundaries
+                if (this.x < world.boundaries.left) {
+                    this.x = world.boundaries.left;
+                }
+                if (this.x > world.boundaries.right) {
+                    this.x = world.boundaries.right;
+                }
+                
+                // Check ground collision based on current area
+                if (currentArea === "surface") {
+                    if (this.y > world.groundLevel - this.height) {
+                        this.y = world.groundLevel - this.height;
+                        this.vy = 0;
+                        this.isOnGround = true;
+                    } else {
+                        this.isOnGround = false;
+                    }
+                } else if (currentArea === "underground") {
+                    // In the underground, the player can only stand on platforms
+                    // or the underground floor
+                    if (this.y > world.undergroundLevel - this.height) {
+                        this.y = world.undergroundLevel - this.height;
+                        this.vy = 0;
+                        this.isOnGround = true;
+                    } else {
+                        this.isOnGround = false;
+                    }
+                }
+                
+                // Update animation
+                if (this.animation.walking) {
+                    this.animation.frame += 0.15;
+                    if (this.animation.frame > 2 * PI) {
+                        this.animation.frame = 0;
+                    }
+                    
+                    this.animation.runFrame += 0.2;
+                    if (this.animation.runFrame > 4) {
+                        this.animation.runFrame = 0;
+                    }
+                }
+                
+                // Update arm and leg angles
+                if (this.animation.walking) {
+                    this.armAngle = sin(this.animation.frame) * 0.7;
+                    this.legAngle = sin(this.animation.frame) * 0.5;
+                } else {
+                    this.armAngle = 0;
+                    this.legAngle = 0;
+                }
+                
+                // If in the air, change pose
+                if (!this.isOnGround) {
+                    this.armAngle = 0.5;
+                    this.legAngle = 0.3;
+                }
+            }
+            
+            display() {
+                push();
+                translate(this.x, this.y+50);
+                
+                // Add glow effect when underground
+                if (currentArea === "underground") {
+                    drawingContext.shadowBlur = 10;
+                    drawingContext.shadowColor = 'rgba(200, 200, 255, 0.5)';
+                }
+                
+                // Flip if facing left
+                if (this.direction === -1) {
+                    scale(-1, 1);
+                }
+                
+                stroke(255);
+                strokeWeight(2);
+                fill(255);
+                
+                // Head
+                circle(0, -this.height + 10, 20);
+                
+                // Body
+                line(0, -this.height + 20, 0, -this.height/2);
+                
+                // Arms
+                push();
+                translate(0, -this.height + 25);
+                
+                // Left arm
+                push();
+                rotate(this.armAngle);
+                line(0, 0, 15, 15);
+                pop();
+                
+                // Right arm
+                push();
+                rotate(-this.armAngle);
+                line(0, 0, -15, 15);
+                pop();
+                
+                pop();
+                
+                // Legs
+                push();
+                translate(0, -this.height/2);
+                
+                // Left leg
+                push();
+                rotate(this.legAngle);
+                line(0, 0, 10, this.height/2);
+                pop();
+                
+                // Right leg
+                push();
+                rotate(-this.legAngle);
+                line(0, 0, -10, this.height/2);
+                pop();
+                
+                pop();
+                
+                pop();
+                
+                // Reset shadow effects
+                drawingContext.shadowBlur = 0;
+            }
+        }
+
+        
+        class Building {
+            constructor(x, y, width, height, projectType, label) {
+                this.x = x;
+                this.y = y;
+                this.width = width;
+                this.height = height;
+                this.projectType = projectType;
+                this.label = label;
+                this.doorOpen = false;
+                this.doorOpenTime = 0;
+                this.playerInside = false;
+                this.postBoxInteraction = false;
+                this.postBoxInteractionTime = 0;
+                
+                // Cyberpunk elements
+                this.neonColor = color(random([
+                    [0, 255, 255],    // cyan
+                    [255, 0, 255],    // magenta
+                    [255, 50, 20],    // red-orange
+                    [0, 255, 130],    // teal
+                    [180, 0, 255]     // purple
+                ]));
+                this.neonBlink = random(0, 1000);
+                this.windowLights = [];
+                
+                // Generate random window lights (on/off pattern)
+                for (let i = 0; i < 6; i++) {
+                    this.windowLights.push(random() > 0.3);
+                }
+            }
+
+            update() {
+                const distanceToPlayer = abs(player.x - this.x);
+                if (distanceToPlayer < 50 && player.y > this.y - 50 && player.y < this.y + this.height) {
+                    this.doorOpen = true;
+                    this.doorOpenTime = millis();
+                } else if (millis() - this.doorOpenTime > 2000) {
+                    this.doorOpen = false;
+                }
+                
+                // Post box interaction
+                const postBoxX = this.x - this.width/2 + 20;
+                const postBoxY = this.y + this.height/2 - 20;
+                const distanceToPostBox = dist(player.x, player.y, postBoxX, postBoxY);
+                
+                if (distanceToPostBox < 40) {
+                    this.postBoxInteraction = true;
+                    this.postBoxInteractionTime = millis();
+                } else if (millis() - this.postBoxInteractionTime > 3000) {
+                    this.postBoxInteraction = false;
+                }
+                
+                // Animate neon light
+                if (frameCount % 120 == 0) {
+                    this.windowLights[floor(random(this.windowLights.length))] = !this.windowLights[floor(random(this.windowLights.length))];
+                }
+            }
+
+            display() {
+                rectMode(CENTER);
+                noStroke();
+
+                // === Ground & Environment ===
+                // Base ground
+                fill(20, 20, 25);
+                rect(this.x, this.y + this.height/2 + 45, this.width + 120, 10);
+                
+                // Cracked concrete instead of lawn
+                fill(40, 40, 45);
+                rect(this.x, this.y + this.height/2 + 30, this.width + 100, 30);
+                
+                // Cracks in concrete
+                stroke(20, 20, 20);
+                strokeWeight(1);
+
+                noStroke();
+
+                // === Shadow Base ===
+                fill(10, 10, 15, 80);
+                rect(this.x, this.y + this.height / 2 + 10, this.width + 30, 15, 0);
+
+                // === Building Body (dark metallic gradient) ===
+                for (let i = -this.height / 2; i < this.height / 2; i += 10) {
+                    // Dark metallic gradient
+                    fill(30 - i * 0.05, 30 - i * 0.05, 35 - i * 0.05);
+                    rect(this.x, this.y + i + 5, this.width, 10);
+                }
+                
+                // === Building Details ===
+                // Weathered look - vertical panels
+                stroke(15, 15, 18);
+                strokeWeight(2);
+                for (let i = -this.width/2 + 20; i < this.width/2; i += 20) {
+                    line(this.x + i, this.y - this.height/2 + 5, this.x + i, this.y + this.height/2);
+                }
+                
+                // Horizontal reinforcement bands
+                stroke(50, 50, 55);
+                strokeWeight(3);
+                line(this.x - this.width/2 - 5, this.y, this.x + this.width/2 + 5, this.y);
+                line(this.x - this.width/2 - 5, this.y - this.height/4, this.x + this.width/2 + 5, this.y - this.height/4);
+                noStroke();
+                
+                // === Roof ===
+                fill(20, 20, 25);
+                stroke(40, 40, 45);
+                strokeWeight(1);
+                beginShape();
+                vertex(this.x - this.width/2 - 10, this.y - this.height/2);
+                vertex(this.x + this.width/2 + 10, this.y - this.height/2);
+                vertex(this.x + this.width/2 - 5, this.y - this.height/2 - 25);
+                vertex(this.x - this.width/2 + 5, this.y - this.height/2 - 25);
+                endShape(CLOSE);
+                
+                // Roof antenna/satellite dish
+                stroke(60, 60, 65);
+                strokeWeight(2);
+                line(this.x + this.width/4, this.y - this.height/2 - 25, 
+                    this.x + this.width/4, this.y - this.height/2 - 45);
+                
+                // Satellite dish
+                noStroke();
+                fill(70, 70, 75);
+                ellipse(this.x + this.width/4, this.y - this.height/2 - 40, 15, 8);
+                
+                // Neon sign on roof
+                if (sin(frameCount/10 + this.neonBlink) > 0.2) {
+                    stroke(this.neonColor);
+                    strokeWeight(3);
+                    noFill();
+                    beginShape();
+                    vertex(this.x - this.width/4, this.y - this.height/2 - 15);
+                    vertex(this.x - this.width/4 + 10, this.y - this.height/2 - 20);
+                    vertex(this.x - this.width/4 + 20, this.y - this.height/2 - 15);
+                    endShape();
+                    
+                    // Neon glow
+                    noStroke();
+                    fill(red(this.neonColor), green(this.neonColor), blue(this.neonColor), 30);
+                    ellipse(this.x - this.width/4 + 10, this.y - this.height/2 - 17, 30, 15);
+                }
+                noStroke();
+
+                // === Door Frame ===
+                fill(30, 30, 35);
+                rect(this.x, this.y + this.height/2 - 25, 36, 56, 0);
+                
+                // Security camera above door
+                fill(40, 40, 45);
+                rect(this.x, this.y + this.height/2 - 56, 12, 6, 1);
+                fill(100, 0, 0);
+                ellipse(this.x, this.y + this.height/2 - 56, 4, 4);
+                
+                // Neon strip around door
+                if (sin(frameCount/8) > 0) {
+                    stroke(this.neonColor);
+                    strokeWeight(1);
+                    noFill();
+                    rect(this.x, this.y + this.height/2 - 25, 40, 60, 0);
+                    noStroke();
+                }
+
+                // === Door (open/closed) ===
+                if (this.doorOpen) {
+                    // Open door shows dark interior
+                    fill(10, 10, 15);
+                    rect(this.x - 8, this.y + this.height/2 - 25, 28, 50, 0);
+                    
+                    // Door edge highlight
+                    stroke(60, 60, 65);
+                    strokeWeight(1);
+                    line(this.x - 22, this.y + this.height/2 - 50, this.x - 22, this.y + this.height/2);
+                    noStroke();
+                } else {
+                    // Closed metallic door
+                    fill(45, 45, 50);
+                    rect(this.x, this.y + this.height/2 - 25, 28, 50, 0);
+                    
+                    // Keypad/security panel
+                    fill(20, 20, 25);
+                    rect(this.x + 10, this.y + this.height/2 - 30, 8, 12, 1);
+                    
+                    // Keypad light
+                    if (frameCount % 60 < 30) {
+                        fill(255, 0, 0, 150);
+                    } else {
+                        fill(255, 0, 0, 80);
+                    }
+                    ellipse(this.x + 10, this.y + this.height/2 - 34, 3, 3);
+                    
+                    // Door reinforcement bars
+                    stroke(60, 60, 65);
+                    strokeWeight(1);
+                    line(this.x - 10, this.y + this.height/2 - 40, this.x + 10, this.y + this.height/2 - 40);
+                    line(this.x - 10, this.y + this.height/2 - 10, this.x + 10, this.y + this.height/2 - 10);
+                    noStroke();
+                }
+
+                // === Windows (cyberpunk style) ===
+                const windowSize = 26;
+                let windowIndex = 0;
+                for (let row = 0; row < 2; row++) {
+                    for (let col = 0; col < 3; col++) {
+                        if (col == 1 && row == 1) continue; // Skip middle bottom (door area)
+                        
+                        const offsetX = map(col, 0, 2, -this.width/3, this.width/3);
+                        const offsetY = map(row, 0, 1, -this.height/4, this.height/4);
+                        
+                        // Window frame
+                        fill(15, 15, 20);
+                        rect(this.x + offsetX, this.y + offsetY, windowSize + 6, windowSize + 6, 0);
+                        
+                        // Window grid pattern
+                        stroke(30, 30, 35);
+                        strokeWeight(2);
+                        line(this.x + offsetX, this.y + offsetY - windowSize/4, 
+                            this.x + offsetX, this.y + offsetY + windowSize/4);
+                        line(this.x + offsetX - windowSize/4, this.y + offsetY, 
+                            this.x + offsetX + windowSize/4, this.y + offsetY);
+                        noStroke();
+                        
+                        // Window glass - some lit, some dark
+                        if (this.windowLights[windowIndex]) {
+                            // Lit window
+                            let windowColor;
+                            if (random() > 0.7) {
+                                windowColor = color(200, 230, 255, 150); // Blue-ish light
+                            } else {
+                                windowColor = color(255, 220, 180, 150); // Warm light
+                            }
+                            fill(windowColor);
+                        } else {
+                            // Dark window
+                            fill(20, 25, 35, 200);
+                        }
+                        rect(this.x + offsetX, this.y + offsetY, windowSize, windowSize, 0);
+                        windowIndex++;
+                    }
+                }
+                
+                // === Post Box (Cyberpunk Terminal) ===
+                const postBoxX = this.x - this.width/2 + 20;
+                const postBoxY = this.y + this.height/2 - 20;
+                
+                // Terminal stand
+                fill(40, 40, 45);
+                rect(postBoxX, postBoxY + 15, 8, 30);
+                
+                // Terminal body
+                fill(30, 30, 35);
+                stroke(60, 60, 65);
+                strokeWeight(1);
+                rect(postBoxX, postBoxY, 26, 24, 2);
+                
+                // Screen
+                fill(20, 20, 25);
+                rect(postBoxX, postBoxY - 2, 20, 16, 1);
+                
+                // Terminal indicator light
+                if (frameCount % 60 < 30) {
+                    fill(0, 255, 100, 150);
+                } else {
+                    fill(0, 255, 100, 80);
+                }
+                ellipse(postBoxX + 10, postBoxY + 8, 4, 4);
+                
+                // Data slot
+                fill(10, 10, 15);
+                noStroke();
+                rect(postBoxX, postBoxY - 5, 16, 2, 1);
+                
+                // If player interacts with post box, display holographic message
+                if (this.postBoxInteraction) {
+                    push();
+                    translate(postBoxX, postBoxY - 40);
+                    
+                    // Holographic projection area
+                    noFill();
+                    stroke(this.neonColor);
+                    strokeWeight(1);
+                    rect(0, 0, 80, 50, 3);
+                    
+                    // Holographic glow
+                    noStroke();
+                    fill(red(this.neonColor), green(this.neonColor), blue(this.neonColor), 30);
+                    rect(0, 0, 80, 50, 3);
+                    
+                    // Scanning lines effect
+                    for (let i = -25; i < 25; i += 5) {
+                        stroke(this.neonColor);
+                        strokeWeight(0.5);
+                        line(-40, i + (frameCount % 50) / 5, 40, i + (frameCount % 50) / 5);
+                    }
+                    
+                    // Digital grid background
+                    stroke(red(this.neonColor), green(this.neonColor), blue(this.neonColor), 40);
+                    strokeWeight(0.5);
+                    for (let i = -40; i <= 40; i += 10) {
+                        line(i, -25, i, 25);
+                        line(-40, i, 40, i);
+                    }
+                    
+                    // Label text with digital effect
+                    fill(255, 255, 255, 220);
+                    noStroke();
+                    textAlign(CENTER, CENTER);
+                    textSize(12);
+                    textStyle(BOLD);
+                    if (frameCount % 30 < 25) { // Text flicker effect
+                        text(this.label, 0, 0);
+                    }
+                    
+                    // Digital noise dots
+                    for (let i = 0; i < 5; i++) {
+                        fill(255, 255, 255, random(100, 200));
+                        const noiseX = random(-35, 35);
+                        const noiseY = random(-20, 20);
+                        ellipse(noiseX, noiseY, 1, 1);
+                    }
+                    
+                    textStyle(NORMAL);
+                    pop();
+                }
+
+                rectMode(CORNER);
+            }
+
+            containsPlayer(player) {
+                return (
+                    this.doorOpen &&
+                    abs(player.x - this.x) < 15 &&
+                    player.y > this.y + this.height / 2 - 50 &&
+                    player.y < this.y + this.height / 2
+                );
+            }
+        }
+
+
+
+
+        
+        class UndergroundBuilding {
+        constructor(x, y, width, height, projectType, label, color) {
+            this.x = x;
+            this.y = y;
+            this.width = width;
+            this.height = height;
+            this.projectType = projectType;
+            this.label = label;
+            this.color = color;
+            this.doorOpen = false;
+            this.doorOpenTime = 0;
+            this.glowAmount = 0;
+            this.glowDirection = 1;
+        }
+
+        update() {
+            const distanceToPlayer = abs(player.x - this.x);
+            if (distanceToPlayer < 50 && player.y > this.y - 50 && player.y < this.y + this.height) {
+                this.doorOpen = true;
+                this.doorOpenTime = millis();
+            } else if (millis() - this.doorOpenTime > 2000) {
+                this.doorOpen = false;
+            }
+
+            this.glowAmount += 0.05 * this.glowDirection;
+            if (this.glowAmount > 15 || this.glowAmount < 5) {
+                this.glowDirection *= -1;
+            }
+        }
+
+        display() {
+            rectMode(CENTER);
+            // Ambient cave glow
+            drawingContext.shadowBlur = this.glowAmount;
+            drawingContext.shadowColor = color(red(this.color), green(this.color), blue(this.color), 120);
+
+            // Main rocky structure
+            fill(30, 30, 35); // dark stone
+            stroke(80, 100, 90); // mossy edges
+            strokeWeight(3);
+            rect(this.x, this.y, this.width, this.height, 6);
+
+            // Cracked rock lines (simulate underground textures)
+            stroke(50);
+            strokeWeight(1);
+            for (let i = -this.width / 2 + 10; i < this.width / 2; i += 15) {
+                line(this.x + i, this.y - this.height / 2, this.x + i + random(-3, 3), this.y + this.height / 2);
+            }
+
+            // Bioluminescent crystal roof
+            noStroke();
+            fill(red(this.color), green(this.color), blue(this.color), 130);
+            beginShape();
+            for (let i = 0; i < 10; i++) {
+                let angle = map(i, 0, 10, 0, TWO_PI);
+                let r = this.width / 3 + sin(frameCount * 0.05 + i) * 3;
+                let px = this.x + cos(angle) * r * 0.6;
+                let py = this.y - this.height / 2 - 30 + sin(angle) * r * 0.4;
+                vertex(px, py);
+            }
+            endShape(CLOSE);
+
+            // Heavy stone door
+            fill(this.doorOpen ? 20 : 60);
+            stroke(100);
+            strokeWeight(1.5);
+            rect(this.x, this.y + this.height / 2 - 25, 32, 52, 2);
+            noStroke();
+
+            // Glowing "moss windows" (bioluminescent fungi or sewer glow)
+            fill(red(this.color), green(this.color), blue(this.color), 180);
+            ellipse(this.x - this.width / 3, this.y - 10, 18, 18);
+            ellipse(this.x + this.width / 3, this.y - 10, 18, 18);
+            fill(255, 255, 255, 40);
+            ellipse(this.x - this.width / 3 - 3, this.y - 13, 6, 6);
+            ellipse(this.x + this.width / 3 - 3, this.y - 13, 6, 6);
+
+            // Label – carved stone sign
+            fill(30);
+            stroke(120);
+            strokeWeight(1);
+            rect(this.x, this.y - this.height / 2 - 28, this.width * 0.6, 24, 3);
+            noStroke();
+            fill(220);
+            textAlign(CENTER, CENTER);
+            textSize(14);
+            text(this.label, this.x, this.y - this.height / 2 - 28);
+
+            drawingContext.shadowBlur = 0;
+            rectMode(CORNER);
+        }
+
+        containsPlayer(player) {
+            return (
+                this.doorOpen &&
+                abs(player.x - this.x) < 15 &&
+                player.y > this.y + this.height / 2 - 50 &&
+                player.y < this.y + this.height / 2
+            );
+        }
+    }
+
+        
+        class Tree {
+            constructor(x, y, height) {
+                this.x = x;
+                this.y = y;
+                this.height = height * 2; // Make satellites very tall
+                this.baseWidth = 24;
+                this.towerWidth = 12;
+                this.glowIntensity = random(150, 255);
+                this.glowColor = [
+                [0, 255, 255],   // cyan
+                [255, 0, 255],   // magenta
+                [0, 200, 255],   // blue
+                [255, 80, 0]     // orange
+                ][floor(random(4))];
+                this.pulseSpeed = random(0.02, 0.05);
+                this.dishSize = height * 0.3;
+                this.dishAngle = random(-0.3, 0.3);
+                this.antennaCount = floor(random(3, 6));
+                this.antennaLengths = [];
+                this.sectionCount = floor(random(4, 7));
+                
+                // Generate random antenna lengths
+                for (let i = 0; i < this.antennaCount; i++) {
+                this.antennaLengths.push(random(20, 60));
+                }
+            }
+
+            display() {
+                push();
+                
+                // === Environmental effects ===
+                // Create subtle cyberpunk fog around towers
+                noStroke();
+
+                
+                // === Base platform === 
+                // Main base structure
+                noStroke();
+                fill(40, 42, 54); // dark metallic
+                rect(this.x - this.baseWidth, this.y - 20, this.baseWidth * 2, 20);
+                
+                // Metal highlight on base
+                fill(70, 72, 84, 150);
+                rect(this.x - this.baseWidth + 5, this.y - 15, this.baseWidth * 2 - 10, 10);
+                
+                // === Tower structure ===
+                // Main tower sections with decreasing width
+                for (let i = 0; i < this.sectionCount; i++) {
+                let sectionHeight = this.height / this.sectionCount;
+                let sectionY = this.y - (i * sectionHeight);
+                let sectionWidth = map(i, 0, this.sectionCount, this.towerWidth, this.towerWidth * 0.6);
+                
+                // Section body
+                fill(30, 32, 44);
+                rect(this.x - sectionWidth/2, sectionY - sectionHeight, sectionWidth, sectionHeight);
+                
+                // Section joints
+                fill(50, 52, 64);
+                rect(this.x - sectionWidth/2 - 4, sectionY - sectionHeight, sectionWidth + 8, 6);
+                
+                // Cyberpunk glow effects - periodic pulse
+                let pulseValue = sin(frameCount * this.pulseSpeed + i * 0.5) * 0.5 + 0.5;
+                let alpha = map(pulseValue, 0, 1, 50, this.glowIntensity);
+                
+                // Status lights on each section
+                fill(this.glowColor[0], this.glowColor[1], this.glowColor[2], alpha);
+                ellipse(this.x + sectionWidth/2 + 3, sectionY - sectionHeight/2, 4, 4);
+                
+                // Random tech details on sections
+
+                }
+                
+                // === Satellite dish ===
+                push();
+                translate(this.x, this.y - this.height);
+                rotate(this.dishAngle);
+                
+                // Dish mount
+                fill(40, 42, 54);
+                rect(-5, 0, 10, 20);
+                
+                // Dish structure
+                fill(70, 72, 84);
+                arc(0, 0, this.dishSize, this.dishSize * 0.6, PI, 0, CHORD);
+                
+                // Dish interior
+                fill(50, 52, 64);
+                arc(0, 0, this.dishSize * 0.8, this.dishSize * 0.5, PI, 0, CHORD);
+                
+                // Dish center
+                fill(30, 32, 44);
+                ellipse(0, -this.dishSize * 0.1, 10, 10);
+                
+                // Dish glow effect
+                let dishPulse = sin(frameCount * this.pulseSpeed * 0.5) * 0.5 + 0.5;
+                let dishAlpha = map(dishPulse, 0, 1, 30, 150);
+                noFill();
+                strokeWeight(2);
+                stroke(this.glowColor[0], this.glowColor[1], this.glowColor[2], dishAlpha);
+                arc(0, 0, this.dishSize * 0.9, this.dishSize * 0.55, PI, 0, OPEN);
+                
+                // Dish signal waves
+                if (frameCount % 120 < 60) {
+                let waveCount = 3;
+                for (let i = 0; i < waveCount; i++) {
+                    let waveProgress = ((frameCount % 60) / 60) + (i / waveCount);
+                    if (waveProgress < 1) {
+                    let waveSize = map(waveProgress, 0, 1, 0, this.dishSize * 0.8);
+                    let waveAlpha = map(waveProgress, 0, 1, 200, 0);
+                    noFill();
+                    strokeWeight(1);
+                    stroke(this.glowColor[0], this.glowColor[1], this.glowColor[2], waveAlpha);
+                    arc(0, 0, waveSize, waveSize * 0.5, -PI * 0.6, -PI * 0.4, OPEN);
+                    }
+                }
+                }
+                pop();
+                
+                // === Antennas at top ===
+                let antennaBaseY = this.y - this.height;
+                
+                // Top communication node
+                fill(40, 42, 54);
+                ellipse(this.x, antennaBaseY - 10, 16, 16);
+                
+                // Central vertical antenna
+                stroke(80, 82, 94);
+                strokeWeight(2);
+                line(this.x, antennaBaseY - 10, this.x, antennaBaseY - 70);
+                
+                // Antenna top
+                noStroke();
+                fill(100, 102, 114);
+                ellipse(this.x, antennaBaseY - 70, 4, 4);
+                
+                // Blinking light at top
+                if (frameCount % 120 < 60) {
+                fill(255, 0, 0, 200);
+                ellipse(this.x, antennaBaseY - 75, 3, 3);
+                }
+                
+                // Additional antennas at various angles
+                for (let i = 0; i < this.antennaCount; i++) {
+                let angle = map(i, 0, this.antennaCount, -PI * 0.7, PI * 0.7);
+                let len = this.antennaLengths[i];
+                
+                stroke(80, 82, 94);
+                strokeWeight(1.5);
+                let endX = this.x + cos(angle) * len;
+                let endY = antennaBaseY - 10 + sin(angle) * len;
+                line(this.x, antennaBaseY - 10, endX, endY);
+                
+                // Antenna tips
+                noStroke();
+                fill(100, 102, 114);
+                ellipse(endX, endY, 3, 3);
+                
+                // Random blinking lights on some antennas
+                if (i % 2 == 0 && (frameCount + i*20) % 90 < 45) {
+                    fill(this.glowColor[0], this.glowColor[1], this.glowColor[2], 200);
+                    ellipse(endX, endY, 4, 4);
+                }
+                }
+                
+                // === Cyberpunk tech details ===
+                // Main transformer box
+                let boxY = this.y - this.height * 0.3;
+                fill(30, 30, 35);
+                rect(this.x - 20, boxY, 40, 60);
+                
+                // Tech details with animated lights
+                fill(50, 50, 55);
+                rect(this.x - 15, boxY + 10, 30, 40);
+                
+                // Blinking status lights
+                let blinkRate = frameCount % 60;
+                
+                // Main status light
+                fill(blinkRate < 30 ? color(255, 0, 0) : color(200, 0, 0));
+                ellipse(this.x + 10, boxY + 20, 5, 5);
+                
+                // Data lights
+
+                
+                // Energy meter with pulsing glow
+                let pulseValue = sin(frameCount * this.pulseSpeed) * 0.5 + 0.5;
+                let alpha = map(pulseValue, 0, 1, 50, this.glowIntensity);
+                
+                strokeWeight(1);
+                stroke(this.glowColor[0], this.glowColor[1], this.glowColor[2], alpha);
+                noFill();
+                rect(this.x - 5, boxY + 15, 10, 20);
+                
+                // Energy reading
+                fill(this.glowColor[0], this.glowColor[1], this.glowColor[2], alpha);
+                rect(this.x - 3, boxY + 17, 6, pulseValue * 16);
+                
+
+                
+                // Data flow on cables
+                let dataFlowPos = frameCount % 20;
+                if (dataFlowPos < 10) {
+                strokeWeight(2);
+                stroke(this.glowColor[0], this.glowColor[1], this.glowColor[2], 200);
+                let progress = dataFlowPos / 10;
+                let x1 = lerp(this.x - 15, this.x - 25, progress);
+                let y1 = lerp(boxY + 30, boxY + 25, progress);
+                point(x1, y1);
+                }
+                
+                pop();
+            }
+            }
+
+        
+        // Cloud class
+        class Cloud {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.speed = random(0.1, 0.5);
+                this.size = random(50, 100);
+                this.offsets = [];
+                for (let i = 0; i < 5; i++) {
+                    this.offsets.push({
+                        x: random(-this.size/2, this.size/2),
+                        y: random(-this.size/4, this.size/4),
+                        size: random(this.size*0.6, this.size)
+                    });
+                }
+            }
+            
+            display() {
+                // Move cloud
+                this.x += this.speed;
+                if (this.x > world.boundaries.right + 200) {
+                    this.x = world.boundaries.left - 200;
+                }
+                
+                // Draw cloud
+                fill(255, 255, 255, 200);
+                noStroke();
+                
+                for (let offset of this.offsets) {
+                    ellipse(
+                        this.x + offset.x,
+                        this.y + offset.y,
+                        offset.size,
+                        offset.size * 0.6
+                    );
+                }
+            }
+        }
+        
+        class Ground {
+            constructor(x, y, width) {
+                this.x = x;
+                this.y = y;
+                this.width = width;
+
+                // Layer heights
+                this.surfaceHeight = 30;
+                this.techLayerHeight = 50;
+                this.coreLayerHeight = 50;
+
+                // Energy cracks on surface
+                this.energyCracks = [];
+
+
+                // Tech nodes
+                this.techNodes = [];
+                for (let i = 0; i < 20; i++) {
+                    this.techNodes.push({
+                        x: random(this.x, this.x + this.width),
+                        y: random(this.y + this.surfaceHeight + 5, this.y + this.surfaceHeight + this.techLayerHeight - 5),
+                        size: random(3, 8),
+                        pulseRate: random(0.02, 0.05),
+                        offset: random(0, TWO_PI)
+                    });
+                }
+
+                // Core elements
+                this.coreElements = [];
+                for (let i = 0; i < 8; i++) {
+                    this.coreElements.push({
+                        x: random(this.x + 20, this.x + this.width - 20),
+                        y: random(this.y + this.surfaceHeight + this.techLayerHeight + 10, 
+                                this.y + this.surfaceHeight + this.techLayerHeight + this.coreLayerHeight - 10),
+                        width: random(30, 60),
+                        height: random(10, 25),
+                        energyLevel: random(150, 255)
+                    });
+                }
+            }
+
+            display() {
+                // --- Surface Layer ---
+                noStroke();
+                fill(20, 22, 30); // Very dark blue-gray
+                rect(this.x, this.y, this.width, this.surfaceHeight);
+
+                // Energy cracks
+                for (let crack of this.energyCracks) {
+                    // Glow effect
+                    stroke(30, 130, crack.glow, 50);
+                    strokeWeight(crack.thickness + 3);
+                    
+                    for (let i = 0; i < crack.segments.length - 1; i++) {
+                        let seg1 = crack.segments[i];
+                        let seg2 = crack.segments[i+1];
+                        line(seg1.x, seg1.y, seg2.x, seg2.y);
+                    }
+                    
+                    // Main line
+                    stroke(30, 200, crack.glow);
+                    strokeWeight(crack.thickness);
+                    
+                    for (let i = 0; i < crack.segments.length - 1; i++) {
+                        let seg1 = crack.segments[i];
+                        let seg2 = crack.segments[i+1];
+                        line(seg1.x, seg1.y, seg2.x, seg2.y);
+                    }
+                }
+
+                // --- Tech Layer ---
+                noStroke();
+                fill(15, 18, 25); // Darker
+                rect(this.x, this.y + this.surfaceHeight, this.width, this.techLayerHeight);
+
+                // Grid lines
+
+                
+
+
+                // Tech nodes (pulsing)
+                noStroke();
+                for (let node of this.techNodes) {
+                    // Pulse effect
+                    let pulseSize = sin(frameCount * node.pulseRate + node.offset) * 2;
+                    
+                    // Glow
+                    fill(30, 180, 255, 50);
+                    ellipse(node.x, node.y, node.size + pulseSize + 4);
+                    
+                    // Core
+                    fill(30, 180, 255);
+                    ellipse(node.x, node.y, node.size + pulseSize);
+                }
+
+                // --- Core Layer ---
+                noStroke();
+                fill(5, 10, 20); // Almost black
+                rect(this.x, this.y + this.surfaceHeight + this.techLayerHeight, this.width, this.coreLayerHeight);
+
+                // Core elements with energy glow
+
+
+                // Layer dividers with glow
+                // Surface to tech layer divider
+                fill(30, 130, 180, 150);
+                rect(this.x, this.y + this.surfaceHeight - 1, this.width, 2);
+                
+                // Tech to core layer divider
+
+            }
+        }
+
+
+
+
+
+        
+        // Access Port class - futuristic tech system entrance
+        class CaveEntrance {
+            constructor(x, y, width, height) {
+                this.x = x;
+                this.y = y;
+                this.width = width;
+                this.height = height;
+                
+                // Animation properties
+                this.scanAngle = 0;
+                this.pulsePhase = 0;
+                this.securityLevel = random(1, 3);
+                this.accessCode = floor(random(1000, 9999));
+                
+                // Hologram projection
+                this.projectionHeight = 0;
+                this.projectionActive = false;
+                this.projectionTimer = 0;
+                
+                // Random flicker effect
+                this.flicker = 255;
+            }
+
+            display() {
+                push();
+                
+                // Outer glow effect
+                noStroke();
+                let glowIntensity = 40 + sin(frameCount * 0.05) * 15;
+                fill(30, 100, 180, glowIntensity);
+                ellipse(this.x, this.y, this.width * 1.2, this.height * 1.2);
+                
+                // Main port frame
+                fill(20, 25, 35);
+                stroke(40, 80, 120);
+                strokeWeight(2);
+                ellipse(this.x, this.y, this.width, this.height);
+                
+                // Inner tech ring with animation
+                this.pulsePhase += 0.03;
+                let pulseValue = sin(this.pulsePhase) * 0.1;
+                
+                fill(15, 20, 30);
+                stroke(30, 130, 200, 150 + sin(this.pulsePhase) * 50);
+                strokeWeight(1.5);
+                ellipse(this.x, this.y, this.width * (0.85 + pulseValue), this.height * (0.85 + pulseValue));
+                
+                // Security nodes around the ring
+                let nodeCount = 8;
+                for (let i = 0; i < nodeCount; i++) {
+                    let angle = TWO_PI / nodeCount * i;
+                    let nx = this.x + cos(angle) * (this.width * 0.38);
+                    let ny = this.y + sin(angle) * (this.height * 0.38);
+                    
+                    // Node base
+                    fill(10, 15, 25);
+                    noStroke();
+                    ellipse(nx, ny, 8, 8);
+                    
+                    // Node light
+                    if (i % this.securityLevel == 0) {
+                        // Active security node (pulsing)
+                        this.flicker = constrain(this.flicker + random(-10, 10), 150, 255);
+                        fill(255, 40, 50, this.flicker);
+                    } else {
+                        // Standard node (steady)
+                        fill(30, 150, 255);
+                    }
+                    ellipse(nx, ny, 4, 4);
+                }
+
+                // Scanner effect
+                this.scanAngle += 0.05;
+                stroke(30, 150, 255, 100);
+                strokeWeight(2);
+                let scanRadius = this.width * 0.3;
+                line(
+                    this.x, this.y,
+                    this.x + cos(this.scanAngle) * scanRadius, 
+                    this.y + sin(this.scanAngle) * scanRadius
+                );
+                
+                // Inner access panel with hexagonal pattern
+                noStroke();
+                fill(20, 30, 40);
+                ellipse(this.x, this.y, this.width * 0.6, this.height * 0.6);
+                
+                
+                
+                // Holographic projection (random activation)
+                if (random(100) < 1 && !this.projectionActive) {
+                    this.projectionActive = true;
+                    this.projectionHeight = 0;
+                }
+                
+                if (this.projectionActive) {
+                    // Projection beam
+                    noStroke();
+                    fill(30, 150, 255, 50);
+                    beginShape();
+                    vertex(this.x - 5, this.y);
+                    vertex(this.x + 5, this.y);
+                    vertex(this.x + 15, this.y - this.projectionHeight);
+                    vertex(this.x - 15, this.y - this.projectionHeight);
+                    endShape(CLOSE);
+                    
+                    // Hologram display
+                    if (this.projectionHeight > 40) {
+                        // Holographic text
+                        fill(30, 150, 255, 180);
+                        textAlign(CENTER, CENTER);
+                        textSize(8);
+                        let statusText = random(100) < 80 ? "SECURE" : "WARNING";
+                        text(statusText, this.x, this.y - this.projectionHeight - 10);
+                        
+                        // Access code
+                        textSize(6);
+                        text("CODE: " + this.accessCode, this.x, this.y - this.projectionHeight);
+                        
+                        // Status screen
+                        stroke(30, 150, 255, 100);
+                        noFill();
+                        rect(this.x - 25, this.y - this.projectionHeight - 20, 50, 25);
+                    }
+                    
+                    // Update projection
+                    this.projectionHeight += 2;
+                    if (this.projectionHeight > 60) {
+                        this.projectionTimer++;
+                        if (this.projectionTimer > 60) {
+                            this.projectionActive = false;
+                            this.projectionTimer = 0;
+                        }
+                    }
+                }
+                
+                // System name
+                noStroke();
+                fill(30, 150, 255);
+                textAlign(CENTER, CENTER);
+                textSize(10);
+                text("SEWER SYSTEM", this.x, this.y);
+                textSize(7);
+                text("ACCESS " + floor(random(1, 9)) + "-" + floor(random(10, 99)), this.x, this.y + 12);
+
+                pop();
+            }
+
+            containsPlayer(player) {
+                return (
+                    abs(player.x - this.x) < this.width / 3 &&
+                    abs(player.y - (this.y - this.height / 4)) < this.height / 2
+                );
+            }
+        }
+
+
+
+
+
+
+
+
+        
+        // Platform class for underground navigation
+        class Platform {
+            constructor(x, y, width, height) {
+                this.x = x;
+                this.y = y;
+                this.width = width;
+                this.height = height;
+            }
+            
+            display() {
+                fill(80, 50, 100);
+                stroke(120, 100, 140);
+                strokeWeight(2);
+                rect(this.x - this.width/2, this.y, this.width, this.height);
+            }
+            
+            checkCollision(player) {
+                return (
+                    player.x > this.x - this.width/2 - player.width/2 &&
+                    player.x < this.x + this.width/2 + player.width/2 &&
+                    player.y + player.height > this.y &&
+                    player.y + player.height < this.y + this.height + 5 &&
+                    player.vy > 0
+                );
+            }
+        }
+        
+        // Rope Ladder class for cave navigation
+        class RopeLadder extends Platform {
+            constructor(x, yTop, yBottom, width) {
+                super(x, yBottom, width, 10);
+                this.yTop = yTop;
+                this.yBottom = yBottom;
+                this.rungs = [];
+                
+                // Create ladder rungs
+                for (let y = yTop; y < yBottom; y += 25) {
+                    this.rungs.push(y);
+                }
+            }
+            
+            display() {
+                // Draw vertical ropes
+                stroke(200, 180, 140);
+                strokeWeight(2);
+                line(this.x - 10, this.yTop, this.x - 10, this.yBottom);
+                line(this.x + 10, this.yTop, this.x + 10, this.yBottom);
+                
+                // Draw rungs
+                strokeWeight(3);
+                for (let y of this.rungs) {
+                    line(this.x - 10, y, this.x + 10, y);
+                }
+                
+                // Draw platform at the bottom
+                super.display();
+            }
+            
+            checkClimb(player) {
+                // Check if player is near the ladder and pressing up
+                return (
+                    abs(player.x - this.x) < 20 &&
+                    player.y > this.yTop - 50 &&
+                    player.y < this.yBottom &&
+                    (keyIsDown(UP_ARROW) || upPressed)
+
+                );
+            }
+        }
+        
+        // Crystal class for underground decoration
+        class Crystal {
+            constructor(x, y, size, color) {
+                this.x = x;
+                this.y = y;
+                this.size = size;
+                this.color = color;
+                this.growAmount = 0;
+                this.growDirection = 1;
+                this.growSpeed = random(0.02, 0.05);
+            }
+            
+            display() {
+                // Update growth animation
+                this.growAmount += this.growSpeed * this.growDirection;
+                if (this.growAmount > 1 || this.growAmount < 0) {
+                    this.growDirection *= -1;
+                }
+                
+                // Draw crystal with glow
+                drawingContext.shadowBlur = 10;
+                drawingContext.shadowColor = this.color;
+                
+                fill(this.color);
+                noStroke();
+                
+                push();
+                translate(this.x, this.y);
+                
+                beginShape();
+                for (let i = 0; i < 5; i++) {
+                    let angle = map(i, 0, 5, 0, TWO_PI);
+                    let r = this.size * (1 + sin(angle * 2) * 0.2 + this.growAmount * 0.1);
+                    let px = cos(angle) * r;
+                    let py = sin(angle) * r;
+                    vertex(px, py);
+                }
+                endShape(CLOSE);
+                
+                pop();
+                
+                // Reset shadow
+                drawingContext.shadowBlur = 0;
+            }
+        }
+        
+        // Stalactite class
+        class Stalactite {
+            constructor(x, y, height) {
+                this.x = x;
+                this.y = y;
+                this.height = height;
+            }
+            
+            display() {
+                fill(80, 70, 90);
+                noStroke();
+                
+                beginShape();
+                vertex(this.x - 5, this.y);
+                vertex(this.x + 5, this.y);
+                vertex(this.x, this.y + this.height);
+                endShape(CLOSE);
+            }
+        }
+        
+        // Stalagmite class
+        class Stalagmite {
+            constructor(x, y, height) {
+                this.x = x;
+                this.y = y;
+                this.height = height;
+            }
+            
+            display() {
+                fill(80, 70, 90);
+                noStroke();
+                
+                beginShape();
+                vertex(this.x - 5, this.y);
+                vertex(this.x + 5, this.y);
+                vertex(this.x, this.y - this.height);
+                endShape(CLOSE);
+            }
+        }
+        
+        // Glowing Particle class
+        class GlowingParticle {
+            constructor(x, y, size, color) {
+                this.x = x;
+                this.y = y;
+                this.baseY = y;
+                this.size = size;
+                this.color = color;
+                this.speed = random(-0.5, 0.5);
+                this.amplitude = random(5, 15);
+                this.phase = random(TWO_PI);
+                this.frequency = random(0.01, 0.03);
+            }
+            
+            update() {
+                this.x += this.speed;
+                this.phase += this.frequency;
+                this.y = this.baseY + sin(this.phase) * this.amplitude;
+                
+                // Wrap around world boundaries
+                if (this.x < world.boundaries.left) {
+                    this.x = world.boundaries.right;
+                } else if (this.x > world.boundaries.right) {
+                    this.x = world.boundaries.left;
+                }
+            }
+            
+            display() {
+                drawingContext.shadowBlur = 10;
+                drawingContext.shadowColor = this.color;
+                
+                fill(this.color);
+                noStroke();
+                circle(this.x, this.y, this.size);
+                
+                drawingContext.shadowBlur = 0;
+            }
+        }
+        
+        // Water Pool class
+        class WaterPool {
+            constructor(x, y, width, height) {
+                this.x = x;
+                this.y = y;
+                this.width = width;
+                this.height = height;
+                this.ripples = [];
+                
+                // Generate random ripples
+                for (let i = 0; i < 5; i++) {
+                    this.addRipple(random(this.x - this.width/2, this.x + this.width/2), random(0, TWO_PI));
+                }
+            }
+            
+            addRipple(x, phase) {
+                this.ripples.push({
+                    x: x,
+                    size: random(10, 30),
+                    phase: phase,
+                    frequency: random(0.03, 0.06)
+                });
+            }
+            
+            update() {
+                // Update ripple animations
+                for (let ripple of this.ripples) {
+                    ripple.phase += ripple.frequency;
+                }
+                
+                // Occasionally add new ripples
+                if (random() < 0.01) {
+                    this.addRipple(random(this.x - this.width/2, this.x + this.width/2), 0);
+                }
+            }
+            
+            display() {
+                // Main water pool
+                fill(70, 100, 150, 180);
+                noStroke();
+                ellipse(this.x, this.y, this.width, this.height);
+                
+                // Draw ripples
+                stroke(100, 150, 200, 100);
+                noFill();
+                for (let ripple of this.ripples) {
+                    let displaySize = ripple.size + sin(ripple.phase) * 5;
+                    ellipse(ripple.x, this.y, displaySize, displaySize * 0.5);
+                }
+                
+                // Reflection highlights
+                fill(200, 220, 255, 50);
+                noStroke();
+                ellipse(this.x - this.width/4, this.y, this.width/3, this.height/3);
+            }
+        }
+
+
+
+        class Apartment {
+            constructor(x, y, width, height, projectType, label) {
+                this.x = x;
+                this.y = y;
+                this.width = width;
+                this.height = height;
+                this.projectType = projectType;
+                this.label = label;
+                this.doorOpen = false;
+                this.doorOpenTime = 0;
+                this.playerInside = false;
+                this.postBoxInteraction = false;
+                this.postBoxInteractionTime = 0;
+            }
+
+            update() {
+                const distanceToPlayer = abs(player.x - this.x);
+                if (distanceToPlayer < 50 && player.y > this.y - 50 && player.y < this.y + this.height) {
+                    this.doorOpen = true;
+                    this.doorOpenTime = millis();
+                } else if (millis() - this.doorOpenTime > 2000) {
+                    this.doorOpen = false;
+                }
+
+                const postBoxX = this.x + this.width / 2 - 20;
+                const postBoxY = this.y + this.height / 2 - 20;
+                const distanceToPostBox = dist(player.x, player.y, postBoxX, postBoxY);
+
+                if (distanceToPostBox < 40) {
+                    this.postBoxInteraction = true;
+                    this.postBoxInteractionTime = millis();
+                } else if (millis() - this.postBoxInteractionTime > 3000) {
+                    this.postBoxInteraction = false;
+                }
+            }
+
+            display() {
+                rectMode(CENTER);
+                noStroke();
+
+                // === Sidewalk Base ===
+                fill(110, 110, 110);
+                rect(this.x, this.y + this.height / 2 + 20, this.width + 80, 20);
+
+                // === Main Apartment Block ===
+                fill(200, 190, 180); // NYC stone facade
+                stroke(160);
+                strokeWeight(1);
+                rect(this.x, this.y, this.width, this.height, 4);
+
+                // === Window Grid ===
+                const floors = 8;
+                const windowsPerFloor = 4;
+                const floorHeight = this.height / floors;
+                const windowSize = 20;
+                for (let i = 0; i < floors; i++) {
+                    for (let j = 0; j < windowsPerFloor; j++) {
+                        const wx = this.x - this.width / 2 + (j + 1) * (this.width / (windowsPerFloor + 1));
+                        const wy = this.y - this.height / 2 + i * floorHeight + floorHeight / 2;
+
+                        // Frame
+                        fill(90);
+                        rect(wx, wy, windowSize + 4, windowSize + 4, 2);
+
+                        // Glass
+                        fill(180, 220, 255, 220);
+                        noStroke();
+                        rect(wx, wy, windowSize, windowSize, 2);
+
+                        // Highlight
+                        fill(255, 255, 255, 30);
+                        rect(wx - 4, wy - 6, 6, 10, 1);
+                    }
+                }
+
+                // === Door Area ===
+                fill(70, 40, 20); // Door frame
+                rect(this.x, this.y + this.height / 2 - 25, 40, 60, 3);
+
+                if (this.doorOpen) {
+                    fill(30);
+                    rect(this.x - 6, this.y + this.height / 2 - 25, 30, 54, 3);
+                } else {
+                    fill(100, 70, 50);
+                    rect(this.x, this.y + this.height / 2 - 25, 30, 54, 3);
+                    fill(250, 215, 100);
+                    ellipse(this.x + 10, this.y + this.height / 2 - 25, 4, 4);
+                }
+
+                // === Post Box ===
+                const postBoxX = this.x + this.width / 2 - 20;
+                const postBoxY = this.y + this.height / 2 - 20;
+
+                fill(120, 100, 80);
+                rect(postBoxX, postBoxY + 15, 6, 30);
+
+                fill(200, 60, 40);
+                stroke(160, 40, 30);
+                strokeWeight(2);
+                rect(postBoxX, postBoxY, 26, 20, 4);
+
+                fill(60, 180, 75);
+                noStroke();
+                beginShape();
+                vertex(postBoxX + 15, postBoxY - 10);
+                vertex(postBoxX + 15, postBoxY - 25);
+                vertex(postBoxX + 25, postBoxY - 20);
+                vertex(postBoxX + 15, postBoxY - 15);
+                endShape(CLOSE);
+                stroke(40, 40, 40);
+                strokeWeight(1.5);
+                line(postBoxX + 15, postBoxY - 10, postBoxX + 15, postBoxY + 5);
+
+                fill(40, 40, 40);
+                noStroke();
+                rect(postBoxX, postBoxY - 5, 20, 4, 1);
+
+                // === Envelope Popup on Interaction ===
+                if (this.postBoxInteraction) {
+                    push();
+                    translate(postBoxX, postBoxY - 35);
+                    fill(250, 250, 240);
+                    stroke(100, 100, 100);
+                    strokeWeight(0);
+                    rect(0, 0, 80, 50, 5);
+                    noStroke();
+
+                    fill(240, 240, 230);
+                    beginShape();
+                    vertex(-40, -25);
+                    vertex(0, -10);
+                    vertex(40, -25);
+                    endShape();
+
+                    stroke(200, 200, 200);
+                    strokeWeight(0.5);
+                    line(-20, 0, -10, 5);
+                    line(20, 0, 10, 5);
+                    noStroke();
+
+                    fill(200, 60, 40);
+                    rect(30, -15, 12, 16, 2);
+
+                    fill(255, 255, 255, 180);
+                    rect(18, -8, 6, 2, 0.5);
+
+                    fill(40, 40, 80);
+                    textAlign(CENTER, CENTER);
+                    textSize(12);
+                    textStyle(BOLD);
+                    text(this.label, 0, 4);
+                    textStyle(NORMAL);
+                    pop();
+                }
+
+                rectMode(CORNER);
+            }
+
+            containsPlayer(player) {
+                return (
+                    this.doorOpen &&
+                    abs(player.x - this.x) < 15 &&
+                    player.y > this.y + this.height / 2 - 50 &&
+                    player.y < this.y + this.height / 2
+                );
+            }
+        }
+
+
+
+
+
+
+        
+        function openProjectModal(projectType) {
+            if (!projects[projectType]) return;
+
+            const modal = document.getElementById('project-modal');
+            const title = document.getElementById('project-title');
+            const content = document.getElementById('project-content');
+
+            title.innerText = '';
+            content.innerHTML = '';
+
+            title.innerText = projects[projectType].title;
+            content.innerHTML = projects[projectType].content;
+
+            modal.classList.remove('modal-show');
+            void modal.offsetWidth;
+            modal.classList.add('modal-show');
+
+            modal.style.display = 'flex';
+
+            // Save state
+            projectModalOpen = true;
+            projectModalOpenTime = millis();
+            currentProjectType = projectType;
+        }
+
+        function checkProjectModalDistance(building) {
+            const distance = abs(player.x - building.x);
+            const verticalInRange = player.y > building.y - 50 && player.y < building.y + building.height;
+
+            if (distance < 50 && verticalInRange) {
+                projectModalOpenTime = millis(); // reset timer if still close
+            } else if (projectModalOpen && millis() - projectModalOpenTime > 2000) {
+                closeProjectModal();
+            }
+        }
+
+
+        function closeProjectModal() {
+            const modal = document.getElementById('project-modal');
+            modal.style.display = 'none';
+
+            projectModalOpen = false;
+            currentProjectType = null;
+        }
+
+
+
+        
+        // Setup mobile controls
+        function setupMobileControls() {
+            const leftBtn = document.getElementById('left-btn');
+            const rightBtn = document.getElementById('right-btn');
+            const jumpBtn = document.getElementById('jump-btn');
+            const upBtn = document.getElementById('up-btn');
+            const toggleBtn = document.getElementById('instructions-toggle');
+            const instructionsBox = document.getElementById('instructions-box');
+
+            const closeModalBtn = document.getElementById('close-modal');
+            
+            // Touch controls for movement
+            leftBtn.addEventListener('touchstart', () => { leftPressed = true; });
+            leftBtn.addEventListener('touchend', () => { leftPressed = false; });
+            
+            rightBtn.addEventListener('touchstart', () => { rightPressed = true; });
+            rightBtn.addEventListener('touchend', () => { rightPressed = false; });
+            
+            jumpBtn.addEventListener('touchstart', () => { jumping = true; });
+            jumpBtn.addEventListener('touchend', () => { jumping = false; });
+
+            upBtn.addEventListener('touchstart', () => { upPressed = true; });
+            upBtn.addEventListener('touchend', () => { upPressed = false; });
+            
+            // Close modal button
+            closeModalBtn.addEventListener('click', () => {
+                document.getElementById('project-modal').style.display = 'none';
+            });
+            toggleBtn.addEventListener('click', () => {
+                instructionsBox.style.display =
+                    instructionsBox.style.display === 'none' ? 'block' : 'none';
+            });
+            
+            // Also handle mouse clicks for testing on desktop
+            leftBtn.addEventListener('mousedown', () => { leftPressed = true; });
+            leftBtn.addEventListener('mouseup', () => { leftPressed = false; });
+            
+            rightBtn.addEventListener('mousedown', () => { rightPressed = true; });
+            rightBtn.addEventListener('mouseup', () => { rightPressed = false; });
+
+            upBtn.addEventListener('mousedown', () => { upPressed = true; });
+            upBtn.addEventListener('mouseup', () => { upPressed = false; });
+            
+            jumpBtn.addEventListener('mousedown', () => { jumping = true; });
+            jumpBtn.addEventListener('mouseup', () => { jumping = false; });
+        }
+        
+        // Window resize event
+        function windowResized() {
+            resizeCanvas(windowWidth, windowHeight);
+            world.groundLevel = height - 100;
+            world.undergroundLevel = world.groundLevel + 500;
+        }
+        
+        // Handle keyboard events
+        function keyPressed() {
+            // Access building when pressing 'upbutton' near a building or jumping
+            if (keyCode === ENTER) { // 'E' key
+                for (let building of buildings) {
+                    if (abs(player.x - building.x) < 50) {
+                        openProjectModal(building.projectType);
+                    }
+                }
+                
+                for (let building of undergroundBuildings) {
+                    if (abs(player.x - building.x) < 50) {
+                        openProjectModal(building.projectType);
+                    }
+                }
+            }
+        }
+        
+    </script>
+</body>
+</html>
+            
+            
